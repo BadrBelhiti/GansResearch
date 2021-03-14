@@ -41,7 +41,7 @@ batch_size = 128
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
-image_size = 32
+image_size = 28
 
 # Number of channels in the training images. For color images this is 3
 nc = 1
@@ -50,10 +50,10 @@ nc = 1
 nz = 100
 
 # Size of feature maps in generator
-ngf = 32
+ngf = 28
 
 # Size of feature maps in discriminator
-ndf = 32
+ndf = 28
 
 # Number of training epochs
 num_epochs = 5
@@ -65,7 +65,7 @@ lr = 0.0002
 beta1 = 0.5
 
 # Number of GPUs available. Use 0 for CPU mode.
-ngpu = 1
+ngpu = 4
 
 # Initialize model working directory
 if not os.path.exists('../models/'):
@@ -82,20 +82,22 @@ transform = transforms.Compose([       # Make sure to change the parameters acco
                 ])
 to_image = transforms.ToPILImage()
 trainset = MNIST(root=data_root, train=True, download=True, transform=transform)
-dataloader = DataLoader(trainset, batch_size=32, shuffle=True, num_workers=workers)  # This draws the data from MNIST
+dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
 
 # Decide which device we want to run on
 device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 
 print('Training on:', device)
 
+'''
 # Plot some training images
 real_batch = next(iter(dataloader))
 plt.figure(figsize=(8,8))
 plt.axis("off")
 plt.title("Training Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True).cpu(),(1,2,0)))
+plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True),(1,2,0)))
 # plt.show()
+'''
 
 def weights_init(m):
     classname = m.__class__.__name__
@@ -266,15 +268,16 @@ for epoch in range(num_epochs):
                   % (epoch + 1, num_epochs, i, len(dataloader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
 
-        # Save Losses for plotting later
-        G_losses.append(errG.item())
-        D_losses.append(errD.item())
-
         # Check how the generator is doing by saving G's output on fixed_noise
         if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(dataloader) - 1)):
             with torch.no_grad():
-                fake = netG(fixed_noise).detach().cpu()
+                fake = netG(fixed_noise).detach()
             img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
+
+        # Save Losses every epoch for plotting later
+        if i == len(dataloader) - 1:
+            G_losses.append(errG.item())
+            D_losses.append(errD.item())
 
         iters += 1
 
@@ -282,7 +285,7 @@ plt.figure(figsize=(10,5))
 plt.title("Generator and Discriminator Loss During Training")
 plt.plot(G_losses,label="G")
 plt.plot(D_losses,label="D")
-plt.xlabel("iterations")
+plt.xlabel("Epochs")
 plt.ylabel("Loss")
 plt.legend()
 plt.savefig(model_dir + 'loss.png')
@@ -313,7 +316,7 @@ plt.figure(figsize=(15,15))
 plt.subplot(1,2,1)
 plt.axis("off")
 plt.title("Real Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:32], padding=5, normalize=True).cpu(),(1,2,0)))
+plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:32], padding=5, normalize=True),(1,2,0)))
 
 # Plot the fake images from the last epoch
 plt.subplot(1,2,2)
