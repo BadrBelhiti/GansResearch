@@ -27,6 +27,9 @@ print("Random Seed: ", manualSeed)
 random.seed(manualSeed)
 torch.manual_seed(manualSeed)
 
+# Model name
+model_name = 'mnist_dcgan'
+
 # Root directory for dataset
 data_root = "../data/"
 
@@ -64,6 +67,15 @@ beta1 = 0.5
 # Number of GPUs available. Use 0 for CPU mode.
 ngpu = 1
 
+# Initialize model working directory
+if not os.path.exists('../models/'):
+    os.mkdir('../models/')
+
+model_dir = '../models/' + model_name + '/'
+
+if not os.path.exists(model_dir):
+    os.mkdir(model_dir)
+
 transform = transforms.Compose([       # Make sure to change the parameters accordingly
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,),(0.5,))
@@ -73,7 +85,7 @@ trainset = MNIST(root=data_root, train=True, download=True, transform=transform)
 dataloader = DataLoader(trainset, batch_size=32, shuffle=True, num_workers=workers)  # This draws the data from MNIST
 
 # Decide which device we want to run on
-device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
+device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 
 print('Training on:', device)
 
@@ -273,8 +285,12 @@ plt.plot(D_losses,label="D")
 plt.xlabel("iterations")
 plt.ylabel("Loss")
 plt.legend()
-plt.show()
+plt.savefig(model_dir + 'loss.png')
 
+# Save model
+torch.save(netG.state_dict(), model_dir + 'model.pth')
+
+'''
 # %%capture
 fig = plt.figure(figsize=(8,8))
 plt.axis("off")
@@ -282,13 +298,16 @@ ims = [[plt.imshow(np.transpose(i,(1,2,0)), animated=True)] for i in img_list]
 ani = animation.ArtistAnimation(fig, ims, interval=1000, repeat_delay=1000, blit=True)
 
 HTML(ani.to_jshtml())
+'''
 
+'''
 # %%
-
 
 # Grab a batch of real images from the dataloader
 real_batch = next(iter(dataloader))
+'''
 
+'''
 # Plot the real images
 plt.figure(figsize=(15,15))
 plt.subplot(1,2,1)
@@ -302,3 +321,4 @@ plt.axis("off")
 plt.title("Fake Images")
 plt.imshow(np.transpose(img_list[-1],(1,2,0)))
 plt.show()
+'''
