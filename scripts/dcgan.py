@@ -76,6 +76,11 @@ model_dir = '../models/' + model_name + '/'
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
+model_dir += str(num_epochs) + '/'
+
+if not os.path.exists(model_dir):
+    os.mkdir(model_dir)
+
 transform = transforms.Compose([       # Make sure to change the parameters accordingly
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,),(0.5,))
