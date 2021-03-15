@@ -56,7 +56,7 @@ ngf = 32
 ndf = 32
 
 # Number of training epochs
-num_epochs = 100
+num_epochs = 5
 
 # Learning rate for optimizers
 lr = 0.0002
@@ -296,7 +296,7 @@ plt.legend()
 plt.savefig(model_dir + 'loss.png')
 
 # Save model
-torch.save(netG.state_dict(), model_dir + 'model.pth')
+torch.save(netG.module.state_dict(), model_dir + 'model.pth')
 
 '''
 # %%capture
