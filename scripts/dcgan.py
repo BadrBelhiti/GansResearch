@@ -56,10 +56,12 @@ ngf = 32
 ndf = 32
 
 # Number of training epochs
-num_epochs = 5
+num_epochs = 10
 
 # Learning rate for optimizers
-lr = 0.0002
+g_lr = 2e-4
+
+d_lr = 2e-4
 
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
@@ -200,8 +202,8 @@ real_label = 1.
 fake_label = 0.
 
 # Setup Adam optimizers for both G and D
-optimizerD = optim.Adam(netD.parameters(), lr=lr, betas=(beta1, 0.999))
-optimizerG = optim.Adam(netG.parameters(), lr=lr, betas=(beta1, 0.999))
+optimizerD = optim.Adam(netD.parameters(), lr=d_lr, betas=(beta1, 0.999))
+optimizerG = optim.Adam(netG.parameters(), lr=g_lr, betas=(beta1, 0.999))
 
 # Training Loop
 
@@ -266,6 +268,9 @@ for epoch in range(num_epochs):
         D_G_z2 = output.mean().item()
         # Update G
         optimizerG.step()
+        optimizerG.step()
+        optimizerG.step()
+        
 
         # Output training stats
         if i % 50 == 0:
