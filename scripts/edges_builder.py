@@ -51,9 +51,13 @@ def build_edges(count=0):
         plt.imsave(output_directory + str(built) + '.jpg', np.asarray(resampled), cmap='gray')
         
         built += 1
+
+        if built % 1000 == 0:
+            print('Generated %s images' % built)
+
         # If 'count' is 0, then whole dataset will be generated.
         if not count == 0 and built == count:
             break;
 
 # Run code
-build_edges(100)
+build_edges()
