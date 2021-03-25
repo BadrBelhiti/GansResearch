@@ -37,7 +37,7 @@ data_root = "../data/CelebA/training_edges/"
 workers = 2
 
 # Batch size during training
-batch_size = 64
+batch_size = 128
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -59,9 +59,9 @@ ndf = 64
 num_epochs = 20
 
 # Learning rate for optimizers
-g_lr = 4e-6
+g_lr = 2e-4
 
-d_lr = 2e-6
+d_lr = 2e-4
 
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
@@ -278,7 +278,6 @@ for epoch in range(num_epochs):
         errG.backward()
         D_G_z2 = output.mean().item()
         # Update G
-        optimizerG.step()
         optimizerG.step()
         
 
