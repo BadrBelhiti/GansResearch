@@ -310,6 +310,6 @@ plt.legend()
 plt.savefig(model_dir + 'loss.png')
 
 # Save model
-if device == 'cuda':
+if device.type == 'cuda':
     netG = netG.module
 torch.save(netG.state_dict(), model_dir + 'model.pth')
