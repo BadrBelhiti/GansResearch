@@ -59,9 +59,9 @@ ndf = 64
 num_epochs = 20
 
 # Learning rate for optimizers
-g_lr = 8e-6
+g_lr = 4e-6
 
-d_lr = 6e-6
+d_lr = 2e-6
 
 # Beta1 hyperparam for Adam optimizers
 beta1 = 0.5
@@ -278,6 +278,7 @@ for epoch in range(num_epochs):
         errG.backward()
         D_G_z2 = output.mean().item()
         # Update G
+        optimizerG.step()
         optimizerG.step()
         
 
