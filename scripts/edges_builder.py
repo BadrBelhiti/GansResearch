@@ -6,7 +6,7 @@ from skimage import filters
 from matplotlib import cm
 
 input_directory = '../data/CelebA/celeba/'
-output_directory = '../data/CelebA/training_edges/'
+output_directory = '../data/CelebA/training_edges/data/'
 
 celeba = os.listdir(os.fsencode(input_directory))
 
