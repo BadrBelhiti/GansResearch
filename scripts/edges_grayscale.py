@@ -6,12 +6,16 @@ from skimage import filters
 from matplotlib import cm
 
 input_directory = '../data/CelebA/celeba/'
-output_directory = '../data/CelebA/training_edges/large/data/'
+output_edges_directory = '../data/CelebA/edges_grayscale/large/edges/data/'
+output_grayscale_directory = '../data/CelebA/edges_grayscale/large/grayscale/data/'
 
 celeba = os.listdir(os.fsencode(input_directory))
 
-if not os.path.exists(output_directory):
-    os.makedirs(output_directory)
+if not os.path.exists(output_edges_directory):
+    os.makedirs(output_edges_directory)
+
+if not os.path.exists(output_grayscale_directory):
+    os.makedirs(output_grayscale_directory)
 
 def edges_grayscale_rgb(file_path):
     # Read in image as RGB array
@@ -28,7 +32,7 @@ def edges_grayscale_rgb(file_path):
 celeba_crop = (0, 20, 178, 218 - 20)
 resolution = (128, 128)
 
-def build_edges(count=0):
+def build_samples(count=0):
     built = 0
     
     # Iterate through each sample
@@ -38,16 +42,20 @@ def build_edges(count=0):
         # First get edges construction
         edges, grayscale, rgb = edges_grayscale_rgb(input_directory + filename)
         edges = Image.fromarray(edges)
+        grayscale = Image.fromarray(grayscale)
     
         # Then scale down edges to desired dimensions
         
         # Crop image to square to maintain aspect ratio
-        cropped = edges.crop(celeba_crop)
+        edges_cropped = edges.crop(celeba_crop)
+        grayscale_cropped = grayscale.crop(celeba_crop)
         
         # Resample to desired resolution
-        resampled = cropped.resize(resolution)
+        edges_resampled = edges_cropped.resize(resolution)
+        grayscale_resampled = grayscale_cropped.resize(resolution)
         
-        plt.imsave(output_directory + str(built) + '.jpg', np.asarray(resampled), cmap='gray')
+        plt.imsave(output_edges_directory + str(built) + '.jpg', np.asarray(edges_resampled), cmap='gray')
+        plt.imsave(output_grayscale_directory + str(built) + '.jpg', np.asarray(grayscale_resampled), cmap='gray')
         
         built += 1
 
@@ -59,4 +67,4 @@ def build_edges(count=0):
             break;
 
 # Run code
-build_edges()
+build_samples(10000)
