@@ -93,7 +93,7 @@ trainset = ImageFolder(root=data_root, transform=transform)
 dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
 
 # Decide which device we want to run on
-device = torch.device("cuda:0" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
+device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 
 print('Training on:', device)
 
