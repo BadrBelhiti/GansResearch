@@ -37,7 +37,7 @@ data_root = "../data/CelebA/training_edges/"
 workers = 2
 
 # Batch size during training
-batch_size = 128
+batch_size = 256
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -91,9 +91,6 @@ transform = transforms.Compose([
 to_image = transforms.ToPILImage()
 trainset = ImageFolder(root=data_root, transform=transform)
 dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
-
-# Decide which device we want to run on
-device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
 
 print('Training on:', device)
 
