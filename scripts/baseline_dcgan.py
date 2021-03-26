@@ -37,7 +37,7 @@ data_root = "../data/CelebA/training_edges/"
 workers = 2
 
 # Batch size during training
-batch_size = 256
+batch_size = 128
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -56,7 +56,7 @@ ngf = 64
 ndf = 64
 
 # Number of training epochs
-num_epochs = 20
+num_epochs = 40
 
 # Learning rate for optimizers
 g_lr = 2e-4
