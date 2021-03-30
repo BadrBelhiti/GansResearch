@@ -56,7 +56,7 @@ ngf = 128
 ndf = ngf // 4
 
 # Number of training epochs
-num_epochs = 20
+num_epochs = 5
 
 # Learning rate for optimizers
 g_lr = 2e-4
