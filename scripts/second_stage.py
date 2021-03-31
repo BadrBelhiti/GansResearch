@@ -28,16 +28,17 @@ random.seed(manualSeed)
 torch.manual_seed(manualSeed)
 
 # Model name
-model_name = 'baseline_dcgan'
+model_name = 'second_stage'
 
 # Root directory for dataset
-data_root = "../data/CelebA/training_edges/large/"
+edges_root = "../data/CelebA/edges_grayscale/large/edges/"
+grayscale_root = "../data/CelebA/edges_grayscale/large/grayscale/"
 
 # Number of workers for dataloader
 workers = 2
 
 # Batch size during training
-batch_size = 128
+batch_size = 64
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -54,6 +55,9 @@ ngf = 128
 
 # Size of feature maps in discriminator
 ndf = ngf // 4
+
+# Size of feature maps in conditional input layers
+ncf = 4
 
 # Number of training epochs
 num_epochs = 20
@@ -84,13 +88,19 @@ if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
 transform = transforms.Compose([    
-                transforms.Grayscale(),   # Make sure to change the parameters accordingly
-                transforms.ToTensor(),
-                transforms.Normalize((0.5,),(0.5,))
+                transforms.Grayscale(),   # Converts image into single channel
+                transforms.ToTensor(),    # Converts image into tensor
+                transforms.Normalize((0.5,),(0.5,)) # Normalizes pixel values to [0, 1]
                 ])
 to_image = transforms.ToPILImage()
-trainset = ImageFolder(root=data_root, transform=transform)
-dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
+
+# Loads edges input in order
+conditional_input = ImageFolder(root=edges_root, transform=transform)
+edges_loader = DataLoader(conditional_input, batch_size=batch_size, shuffle=False, num_workers=workers)
+
+# Loads grayscale output in order
+conditional_output = ImageFolder(root=grayscale_root, transform=transform)
+grayscale_loader = DataLoader(conditional_output, batch_size=batch_size, shuffle=False, num_workers=workers)
 
 # Decide which device we want to run on
 device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
@@ -99,7 +109,7 @@ print('Training on:', device)
 
 '''
 # Plot some training images
-real_batch = next(iter(dataloader))
+real_batch = next(iter(grayscale_loader))
 plt.figure(figsize=(8,8))
 plt.axis("off")
 plt.title("Training Images")
@@ -119,9 +129,37 @@ class Generator(nn.Module):
     def __init__(self, ngpu):
         super(Generator, self).__init__()
         self.ngpu = ngpu
+        self.conditional = nn.Sequential(
+            # input is (nc) x 128 x 128
+            nn.Conv2d(nc, ncf, 4, 2, 1, bias=False),
+            nn.LeakyReLU(0.2, inplace=True),
+             # state size. (ndf) x 64 x 64
+            nn.Conv2d(ncf, ncf * 2, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ncf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf) x 32 x 32
+            nn.Conv2d(ncf * 2, ncf * 4, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ncf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*2) x 16 x 16
+            nn.Conv2d(ncf * 4, ncf * 8, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ncf * 8),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 8 x 8
+            nn.Conv2d(ncf * 8, ncf * 16, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ncf * 16),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(ncf * 16, ncf * 32, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ncf * 32),
+            nn.LeakyReLU(0.2, inplace=True),
+
+            nn.Conv2d(ncf * 32, ncf * 64, 4, 2, 1, bias=False),
+            nn.Sigmoid()
+        )
         self.main = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d( nz, ngf * 16, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(nz + ncf * 64, ngf * 16, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 16),
             nn.ReLU(True),
 
@@ -149,7 +187,21 @@ class Generator(nn.Module):
         )
 
     def forward(self, input):
-        return self.main(input)
+        noise, conditional_input = input
+        gan_input = None
+
+        for i in range(batch_size):
+            sample_noise = noise[i]
+            sample_input = conditional_input[i]
+            simplified = self.conditional(sample_input.unsqueeze(0))
+            concat = torch.cat((sample_noise, simplified[0])).unsqueeze(0)
+
+            if i == 0:
+                gan_input = concat
+            else:
+                gan_input = torch.cat((concat, gan_input))
+
+        return self.main(gan_input)
 
 # Create the generator
 netG = Generator(ngpu).to(device)
@@ -238,7 +290,7 @@ print("Starting Training Loop...")
 # For each epoch
 for epoch in range(num_epochs):
     # For each batch in the dataloader
-    for i, data in enumerate(dataloader, 0):
+    for i, data in enumerate(grayscale_loader, 0):
 
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
@@ -260,8 +312,11 @@ for epoch in range(num_epochs):
         ## Train with all-fake batch
         # Generate batch of latent vectors
         noise = torch.randn(b_size, nz, 1, 1, device=device)
+        # Edges
+        conditional_input = data[0].to(device)
+
         # Generate fake image batch with G
-        fake = netG(noise)
+        fake = netG((noise, conditional_input))
         label.fill_(fake_label)
         # Classify all fake batch with D
         output = netD(fake.detach()).view(-1)
@@ -294,17 +349,17 @@ for epoch in range(num_epochs):
         # Output training stats
         if i % 50 == 0:
             print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                  % (epoch + 1, num_epochs, i, len(dataloader),
+                  % (epoch + 1, num_epochs, i, len(edges_loader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
 
         # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(dataloader) - 1)):
+        if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(edges_loader) - 1)):
             with torch.no_grad():
-                fake = netG(fixed_noise).detach()
+                fake = netG((fixed_noise, conditional_input)).detach()
             img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
 
         # Save Losses every epoch for plotting later
-        if i == len(dataloader) - 1:
+        if i == len(edges_loader) - 1:
             G_losses.append(errG.item())
             D_losses.append(errD.item())
 

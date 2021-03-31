@@ -67,4 +67,4 @@ def build_samples(count=0):
             break;
 
 # Run code
-build_samples(10000)
+build_samples(1000)
