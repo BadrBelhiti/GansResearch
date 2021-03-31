@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.utils.data
 from torchvision.datasets import ImageFolder
 import torchvision.datasets as dset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 import numpy as np
@@ -19,6 +19,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
 import requests
+from skimage import io
+from PIL import Image
 
 # Set random seed for reproducibility
 manualSeed = 999
@@ -31,14 +33,14 @@ torch.manual_seed(manualSeed)
 model_name = 'second_stage'
 
 # Root directory for dataset
-edges_root = "../data/CelebA/edges_grayscale/large/edges/"
-grayscale_root = "../data/CelebA/edges_grayscale/large/grayscale/"
+edges_root = "../data/CelebA/edges_grayscale/large/edges/data/"
+grayscale_root = "../data/CelebA/edges_grayscale/large/grayscale/data/"
 
 # Number of workers for dataloader
 workers = 2
 
 # Batch size during training
-batch_size = 64
+batch_size = 16
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -60,7 +62,7 @@ ndf = ngf // 4
 ncf = 4
 
 # Number of training epochs
-num_epochs = 20
+num_epochs = 1
 
 # Learning rate for optimizers
 g_lr = 2e-4
@@ -87,20 +89,40 @@ model_dir += str(num_epochs) + '/'
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
+class EdgesToGrayscaleDataset(Dataset):
+
+    def __init__(self, edges_dir, grayscale_dir, transform=None):
+        assert len(os.listdir(edges_dir)) == len(os.listdir(grayscale_dir))
+        self.edges = edges_dir
+        self.grayscale = grayscale_dir
+        self.transform = transform
+        self.length = len(os.listdir(edges_dir))
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        edges_image = Image.open(os.path.join(self.edges, str(idx) + '.jpg'))
+        grayscale_image = Image.open(os.path.join(self.grayscale, str(idx) + '.jpg'))
+
+        if self.transform:
+            edges_image = self.transform(edges_image)
+            grayscale_image = self.transform(grayscale_image)
+
+        return {'edges': edges_image, 'grayscale': grayscale_image}
+
 transform = transforms.Compose([    
                 transforms.Grayscale(),   # Converts image into single channel
                 transforms.ToTensor(),    # Converts image into tensor
                 transforms.Normalize((0.5,),(0.5,)) # Normalizes pixel values to [0, 1]
                 ])
-to_image = transforms.ToPILImage()
 
-# Loads edges input in order
-conditional_input = ImageFolder(root=edges_root, transform=transform)
-edges_loader = DataLoader(conditional_input, batch_size=batch_size, shuffle=False, num_workers=workers)
-
-# Loads grayscale output in order
-conditional_output = ImageFolder(root=grayscale_root, transform=transform)
-grayscale_loader = DataLoader(conditional_output, batch_size=batch_size, shuffle=False, num_workers=workers)
+# Use custom dataset to load in conditional input and desired output
+dataset = EdgesToGrayscaleDataset(edges_root, grayscale_root, transform)
+dataloader = DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=workers)
 
 # Decide which device we want to run on
 device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
@@ -109,11 +131,13 @@ print('Training on:', device)
 
 '''
 # Plot some training images
-real_batch = next(iter(grayscale_loader))
+real_batch = next(iter(dataloader))
 plt.figure(figsize=(8,8))
 plt.axis("off")
 plt.title("Training Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True),(1,2,0)))
+plt.imshow(np.transpose(vutils.make_grid(real_batch['grayscale'].to(device)[:64], padding=2, normalize=True),(1,2,0)))
+plt.show()
+plt.imshow(np.transpose(vutils.make_grid(real_batch['edges'].to(device)[:64], padding=2, normalize=True),(1,2,0)))
 plt.show()
 '''
 
@@ -290,21 +314,30 @@ print("Starting Training Loop...")
 # For each epoch
 for epoch in range(num_epochs):
     # For each batch in the dataloader
-    for i, data in enumerate(grayscale_loader, 0):
-
+    for i, data in enumerate(dataloader, 0):
         ############################
         # (1) Update D network: maximize log(D(x)) + log(1 - D(G(z)))
         ###########################
+
         ## Train with all-real batch
         netD.zero_grad()
+
         # Format batch
-        real_cpu = data[0].to(device)
+        real_cpu = data['grayscale'].to(device)
+        
+        # Skip iterations with incomplete batch
+        if (len(real_cpu) < batch_size):
+            continue
+
         b_size = real_cpu.size(0)
         label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
+
         # Forward pass real batch through D
         output = netD(real_cpu).view(-1)
+
         # Calculate loss on all-real batch
         errD_real = criterion(output, label)
+
         # Calculate gradients for D in backward pass
         errD_real.backward()
         D_x = output.mean().item()
@@ -312,21 +345,29 @@ for epoch in range(num_epochs):
         ## Train with all-fake batch
         # Generate batch of latent vectors
         noise = torch.randn(b_size, nz, 1, 1, device=device)
+
         # Edges
-        conditional_input = data[0].to(device)
+        conditional_input = data['edges'].to(device)
 
         # Generate fake image batch with G
         fake = netG((noise, conditional_input))
         label.fill_(fake_label)
+        with torch.no_grad():
+            img_list.append(np.transpose(vutils.make_grid(fake, padding = 5, normalize=True), (1, 2, 0)))
+
         # Classify all fake batch with D
         output = netD(fake.detach()).view(-1)
+
         # Calculate D's loss on the all-fake batch
         errD_fake = criterion(output, label)
+
         # Calculate the gradients for this batch
         errD_fake.backward()
         D_G_z1 = output.mean().item()
+
         # Add the gradients from the all-real and all-fake batches
         errD = errD_real + errD_fake
+
         # Update D
         optimizerD.step()
 
@@ -347,30 +388,26 @@ for epoch in range(num_epochs):
         
 
         # Output training stats
-        if i % 50 == 0:
-            print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
-                  % (epoch + 1, num_epochs, i, len(edges_loader),
+        print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
+                  % (epoch + 1, num_epochs, i, len(dataloader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-
-        # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(edges_loader) - 1)):
-            with torch.no_grad():
-                fake = netG((fixed_noise, conditional_input)).detach()
-            img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
-
-        # Save Losses every epoch for plotting later
-        if i == len(edges_loader) - 1:
-            G_losses.append(errG.item())
-            D_losses.append(errD.item())
+        G_losses.append(errG.item())
+        D_losses.append(errD.item())
 
         iters += 1
 
+    # Save generated sample from each epoch
+    # fake_image = netG((torch.randn(16, nz, 1, 1, device=device), dataset[0]['edges']))
+    # img_list.append(np.transpose(vutils.make_grid(fake_image, padding = 5, normalize=True), (1, 2, 0)))
+
+print('Finished training. Saving results...')
+
 plt.figure(figsize=(10,5))
-plt.title("Generator and Discriminator Loss During Training")
+plt.title('Generator and Discriminator Loss During Training')
 plt.plot(G_losses,label="G")
 plt.plot(D_losses,label="D")
-plt.xlabel("Epochs")
-plt.ylabel("Loss")
+plt.xlabel('Iterations')
+plt.ylabel('Loss')
 plt.legend()
 plt.savefig(model_dir + 'loss.png')
 
