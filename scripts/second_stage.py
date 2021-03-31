@@ -287,8 +287,9 @@ netD.apply(weights_init)
 # Print the model
 # print(netD)
 
-# Initialize BCELoss function
+# Initialize loss functions
 criterion = nn.BCELoss()
+conditional_criterion = nn.MSELoss()
 
 # Create batch of latent vectors that we will use to visualize
 #  the progression of the generator
@@ -352,8 +353,6 @@ for epoch in range(num_epochs):
         # Generate fake image batch with G
         fake = netG((noise, conditional_input))
         label.fill_(fake_label)
-        with torch.no_grad():
-            img_list.append(np.transpose(vutils.make_grid(fake, padding = 5, normalize=True), (1, 2, 0)))
 
         # Classify all fake batch with D
         output = netD(fake.detach()).view(-1)
@@ -376,13 +375,23 @@ for epoch in range(num_epochs):
         ###########################
         netG.zero_grad()
         label.fill_(real_label)  # fake labels are real for generator cost
+
         # Since we just updated D, perform another forward pass of all-fake batch through D
         output = netD(fake).view(-1)
-        # Calculate G's loss based on this output
-        errG = criterion(output, label)
+
+        # Calculate G's realism loss
+        errG_realism = criterion(output, label)
+
+        # Calculate G's mapping loss
+        errG_mapping = conditional_criterion(fake, data['grayscale'])
+
+        # Calculate G's total loss
+        errG = errG_realism + errG_mapping
+
         # Calculate gradients for G
         errG.backward()
         D_G_z2 = output.mean().item()
+
         # Update G
         optimizerG.step()
         
