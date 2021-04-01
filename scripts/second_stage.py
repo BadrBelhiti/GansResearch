@@ -212,20 +212,8 @@ class Generator(nn.Module):
 
     def forward(self, input):
         noise, conditional_input = input
-        gan_input = None
-
-        for i in range(batch_size):
-            sample_noise = noise[i]
-            sample_input = conditional_input[i]
-            simplified = self.conditional(sample_input.unsqueeze(0))
-            concat = torch.cat((sample_noise, simplified[0])).unsqueeze(0)
-
-            if i == 0:
-                gan_input = concat
-            else:
-                gan_input = torch.cat((concat, gan_input))
-
-        return self.main(gan_input)
+        conv_out = self.conditional(conditional_input)
+        return self.main(torch.cat((noise, conv_out), dim=1))
 
 # Create the generator
 netG = Generator(ngpu).to(device)
