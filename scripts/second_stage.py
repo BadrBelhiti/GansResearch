@@ -62,7 +62,7 @@ ndf = 32
 ncf = 32
 
 # Number of training epochs
-num_epochs = 20
+num_epochs = 5
 
 # Learning rate for optimizers
 g_lr = 2e-4
@@ -207,9 +207,9 @@ class Generator(nn.Module):
 
     def forward(self, input):
         noise, conditional_input = input
+        batch = batch_size if device.type == 'cpu' else batch_size // ngpu
         conv_out = self.conditional(conditional_input)
-        conv_out = torch.flatten(conv_out, start_dim=1).reshape((128, -1, 1, 1))
-        print(conv_out.shape)
+        conv_out = torch.flatten(conv_out, start_dim=1).reshape((batch, -1, 1, 1))
         return self.main(torch.cat((noise, conv_out), dim=1))
 
 # Create the generator
@@ -230,33 +230,37 @@ class Discriminator(nn.Module):
     def __init__(self, ngpu):
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
+
         self.main = nn.Sequential(
             # input is (nc) x 128 x 128
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.Conv2d(nc * 2, ndf * 2, 4, 2, 1, bias=False),
             nn.LeakyReLU(0.2, inplace=True),
              # state size. (ndf) x 64 x 64
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-            nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf) x 32 x 32
             nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 4),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*2) x 16 x 16
+            # state size. (ndf) x 32 x 32
             nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 8),
             nn.LeakyReLU(0.2, inplace=True),
-            # state size. (ndf*4) x 8 x 8
+            # state size. (ndf*2) x 16 x 16
             nn.Conv2d(ndf * 8, ndf * 16, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ndf * 16),
             nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 8 x 8
+            nn.Conv2d(ndf * 16, ndf * 32, 4, 2, 1, bias=False),
+            nn.BatchNorm2d(ndf * 32),
+            nn.LeakyReLU(0.2, inplace=True),
             # state size. (ndf*8) x 4 x 4
-            nn.Conv2d(ndf * 16, 1, 4, 1, 0, bias=False),
+            nn.Conv2d(ndf * 32, 1, 4, 1, 0, bias=False),
             nn.Sigmoid()
         )
 
     def forward(self, input):
-        return self.main(input)
+        edges, grayscale = input
+        # Concatenate images on channel dimension
+        new_input = torch.cat((edges, grayscale), dim=1)
+        return self.main(new_input)
 
 # Create the Discriminator
 netD = Discriminator(ngpu).to(device)
@@ -309,17 +313,18 @@ for epoch in range(num_epochs):
         netD.zero_grad()
 
         # Format batch
-        real_cpu = data['grayscale'].to(device)
+        real_edges = data['edges'].to(device)
+        real_grayscale = data['grayscale'].to(device)
         
         # Skip iterations with incomplete batch
-        if (len(real_cpu) < batch_size):
+        if (len(real_grayscale) < batch_size):
             continue
 
-        b_size = real_cpu.size(0)
+        b_size = real_grayscale.size(0)
         label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
 
         # Forward pass real batch through D
-        output = netD(real_cpu).view(-1)
+        output = netD((real_edges, real_grayscale)).view(-1)
 
         # Calculate loss on all-real batch
         errD_real = criterion(output, label)
@@ -333,7 +338,7 @@ for epoch in range(num_epochs):
         noise = torch.randn(b_size, nz, 1, 1, device=device)
 
         # Edges
-        conditional_input = data['edges'].to(device)
+        conditional_input = real_edges
 
         # Generate fake image batch with G
         fake = netG((noise, conditional_input))
@@ -362,16 +367,16 @@ for epoch in range(num_epochs):
         label.fill_(real_label)  # fake labels are real for generator cost
 
         # Since we just updated D, perform another forward pass of all-fake batch through D
-        output = netD(fake).view(-1)
+        output = netD((real_edges, fake)).view(-1)
 
         # Calculate G's realism loss
         errG_realism = criterion(output, label)
 
         # Calculate G's mapping loss
-        errG_mapping = conditional_criterion(fake, data['grayscale'])
+        # errG_mapping = conditional_criterion(fake, data['grayscale'].to(device))
 
         # Calculate G's total loss
-        errG = errG_realism + errG_mapping
+        errG = errG_realism # + errG_mapping
 
         # Calculate gradients for G
         errG.backward()
