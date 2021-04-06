@@ -345,7 +345,7 @@ for epoch in range(num_epochs):
         label.fill_(fake_label)
 
         # Classify all fake batch with D
-        output = netD(fake.detach()).view(-1)
+        output = netD((real_edges, fake.detach())).view(-1)
 
         # Calculate D's loss on the all-fake batch
         errD_fake = criterion(output, label)
