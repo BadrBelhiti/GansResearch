@@ -11,7 +11,7 @@ import torch.optim as optim
 import torch.utils.data
 from torchvision.datasets import ImageFolder
 import torchvision.datasets as dset
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, Dataset
 import torchvision.transforms as transforms
 import torchvision.utils as vutils
 import numpy as np
@@ -31,7 +31,7 @@ torch.manual_seed(manualSeed)
 model_name = 'control_dcgan'
 
 # Root directory for dataset
-data_root = "../data/CelebA/"
+data_root = "../data/CelebA/tensors/data/"
 
 # Number of workers for dataloader
 workers = 2
@@ -83,14 +83,19 @@ model_dir += str(num_epochs) + '/'
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
-transform = transforms.Compose([    
-                transforms.CenterCrop(178),
-                transforms.Resize(128),   
-                transforms.ToTensor(),
-                transforms.Normalize((0.5, 0.5, 0.5),(0.5, 0.5, 0.5))
-                ])
-to_image = transforms.ToPILImage()
-trainset = ImageFolder(root=data_root, transform=transform)
+class TensorDataset(Dataset):
+
+    def __init__(self, input_dir):
+        self.input_dir = input_dir
+        self.length = len(os.listdir(input_dir))
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, idx):
+        return torch.load(self.input_dir + str(idx) + '.pt')
+
+trainset = TensorDataset(data_root)
 dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
 
 # Decide which device we want to run on
