@@ -16,9 +16,6 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from IPython.display import HTML
-import requests
 from skimage import io
 from PIL import Image
 
@@ -144,23 +141,23 @@ class Generator(nn.Module):
 
         # Convolutional layers before latent vector is concatenated
         self.conditional = nn.Sequential(
-            nn.Conv2d(nc, ncf, 4, 1, 1, bias=False),
+            nn.Conv2d(nc, ncf, 5, 1, 2, bias=False),
             nn.BatchNorm2d(ncf),
             nn.LeakyReLU(0.2, inplace=True),
             
-            nn.Conv2d(ncf, ncf * 2, 4, 1, 1, bias=False),
+            nn.Conv2d(ncf, ncf * 2, 5, 1, 2, bias=False),
             nn.BatchNorm2d(ncf * 2),
             nn.LeakyReLU(0.2, inplace=True),
             
-            nn.Conv2d(ncf * 2, ncf * 4, 4, 1, 1, bias=False),
+            nn.Conv2d(ncf * 2, ncf * 4, 5, 1, 2, bias=False),
             nn.BatchNorm2d(ncf * 4),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv2d(ncf * 4, ncf * 8, 4, 1, 1, bias=False),
+            nn.Conv2d(ncf * 4, ncf * 8, 5, 1, 2, bias=False),
             nn.BatchNorm2d(ncf * 8),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv2d(ncf * 8, ncf * 16, 4, 1, 1, bias=False),
+            nn.Conv2d(ncf * 8, ncf * 16, 5, 1, 2, bias=False),
             nn.ReLU(True)
         )
 
