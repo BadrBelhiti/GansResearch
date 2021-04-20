@@ -40,7 +40,7 @@ grayscale_root = "../data/CelebA/edges_grayscale/large/grayscale/data/"
 workers = 2
 
 # Batch size during training
-batch_size = 128
+batch_size = 32
 
 # Spatial size of training images. All images will be resized to this
 #   size using a transformer.
@@ -49,8 +49,8 @@ image_size = 128
 # Number of channels in the training images. For color images this is 3
 nc = 1
 
-# Size of z latent vector (i.e. size of generator input)
-nz = 100
+# Mapping weight (cGAN lambda)
+mapping_weight = 100
 
 # Size of feature maps in generator
 ngf = 64
@@ -129,18 +129,6 @@ device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "c
 
 print('Training on:', device)
 
-'''
-# Plot some training images
-real_batch = next(iter(dataloader))
-plt.figure(figsize=(8,8))
-plt.axis("off")
-plt.title("Training Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch['grayscale'].to(device)[:64], padding=2, normalize=True),(1,2,0)))
-plt.show()
-plt.imshow(np.transpose(vutils.make_grid(real_batch['edges'].to(device)[:64], padding=2, normalize=True),(1,2,0)))
-plt.show()
-'''
-
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -156,29 +144,30 @@ class Generator(nn.Module):
 
         # Convolutional layers before latent vector is concatenated
         self.conditional = nn.Sequential(
-            nn.Conv2d(nc, ncf, 4, 2, 1, bias=False),
+            nn.Conv2d(nc, ncf, 4, 1, 1, bias=False),
+            nn.BatchNorm2d(ncf),
             nn.LeakyReLU(0.2, inplace=True),
             
-            nn.Conv2d(ncf, ncf * 2, 4, 2, 1, bias=False),
+            nn.Conv2d(ncf, ncf * 2, 4, 1, 1, bias=False),
             nn.BatchNorm2d(ncf * 2),
             nn.LeakyReLU(0.2, inplace=True),
             
-            nn.Conv2d(ncf * 2, ncf * 4, 4, 2, 1, bias=False),
+            nn.Conv2d(ncf * 2, ncf * 4, 4, 1, 1, bias=False),
             nn.BatchNorm2d(ncf * 4),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv2d(ncf * 4, ncf * 8, 4, 2, 1, bias=False),
+            nn.Conv2d(ncf * 4, ncf * 8, 4, 1, 1, bias=False),
             nn.BatchNorm2d(ncf * 8),
             nn.LeakyReLU(0.2, inplace=True),
 
-            nn.Conv2d(ncf * 8, ncf * 16, 4, 2, 1, bias=False),
+            nn.Conv2d(ncf * 8, ncf * 16, 4, 1, 1, bias=False),
             nn.ReLU(True)
         )
 
         # Beginning of actual generator
         self.main = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d(nz + 8192, ngf * 16, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d(ncf * 16, ngf * 16, 4, 1, 0, bias=False),
             nn.BatchNorm2d(ngf * 16),
             nn.ReLU(True),
 
@@ -192,25 +181,24 @@ class Generator(nn.Module):
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
             # state size. (ngf*4) x 16 x 16
-            nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
             # state size. (ngf*2) x 32 x 32
-            nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
             # state size. (ngf) x 64 x 64
-            nn.ConvTranspose2d( ngf, nc, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf, nc, 4, 2, 1, bias=False),
             nn.Tanh()
             # state size. (nc) x 128 x 128
         )
 
-    def forward(self, input):
-        noise, conditional_input = input
-        batch = batch_size if device.type == 'cpu' else batch_size // ngpu
-        conv_out = self.conditional(conditional_input)
-        conv_out = torch.flatten(conv_out, start_dim=1).reshape((batch, -1, 1, 1))
-        return self.main(torch.cat((noise, conv_out), dim=1))
+    def forward(self, conditional_input):
+        cond = self.conditional(conditional_input)
+        print(cond.shape)
+        # return self.main(cond)
+        return cond
 
 # Create the generator
 netG = Generator(ngpu).to(device)
@@ -282,7 +270,7 @@ conditional_criterion = nn.L1Loss()
 
 # Create batch of latent vectors that we will use to visualize
 #  the progression of the generator
-fixed_noise = torch.randn(64, nz, 1, 1, device=device)
+# fixed_noise = torch.randn(64, nz, 1, 1, device=device)
 
 # Establish convention for real and fake labels during training
 real_label = 1.
@@ -335,13 +323,14 @@ for epoch in range(num_epochs):
 
         ## Train with all-fake batch
         # Generate batch of latent vectors
-        noise = torch.randn(b_size, nz, 1, 1, device=device)
+        # noise = torch.randn(b_size, nz, 1, 1, device=device)
 
         # Edges
         conditional_input = real_edges
 
         # Generate fake image batch with G
-        fake = netG((noise, conditional_input))
+        fake = netG(conditional_input)
+        print(fake.shape)
         label.fill_(fake_label)
 
         # Classify all fake batch with D
@@ -373,10 +362,10 @@ for epoch in range(num_epochs):
         errG_realism = criterion(output, label)
 
         # Calculate G's mapping loss
-        # errG_mapping = conditional_criterion(fake, data['grayscale'].to(device))
+        errG_mapping = conditional_criterion(fake, data['grayscale'].to(device))
 
         # Calculate G's total loss
-        errG = errG_realism # + errG_mapping
+        errG = errG_realism + mapping_weight * errG_mapping
 
         # Calculate gradients for G
         errG.backward()
