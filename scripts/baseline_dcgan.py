@@ -88,9 +88,8 @@ transform = transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Normalize((0.5,),(0.5,))
                 ])
-to_image = transforms.ToPILImage()
 trainset = ImageFolder(root=data_root, transform=transform)
-dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)  # This draws the data from MNIST
+dataloader = DataLoader(trainset, batch_size=batch_size, shuffle=True, num_workers=workers)
 
 # Decide which device we want to run on
 device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "cpu")
@@ -130,22 +129,22 @@ class Generator(nn.Module):
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
 
-            # state size. (ngf*8) x 4 x 4
+            # state size. (ngf*8) x 8 x 8
             nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
-            # state size. (ngf*4) x 8 x 8
+            # state size. (ngf*4) x 16 x 16
             nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
-            # state size. (ngf*2) x 16 x 16
+            # state size. (ngf*2) x 32 x 32
             nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
-            # state size. (ngf) x 32 x 32
+            # state size. (ngf) x 64 x 64
             nn.ConvTranspose2d( ngf, nc, 4, 2, 1, bias=False),
             nn.Tanh()
-            # state size. (nc) x 64 x 64
+            # state size. (nc) x 128 x 128
         )
 
     def forward(self, input):
@@ -292,21 +291,11 @@ for epoch in range(num_epochs):
         
 
         # Output training stats
-        if i % 50 == 0:
-            print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
+        print('[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f'
                   % (epoch + 1, num_epochs, i, len(dataloader),
                      errD.item(), errG.item(), D_x, D_G_z1, D_G_z2))
-
-        # Check how the generator is doing by saving G's output on fixed_noise
-        if (iters % 500 == 0) or ((epoch == num_epochs - 1) and (i == len(dataloader) - 1)):
-            with torch.no_grad():
-                fake = netG(fixed_noise).detach()
-            img_list.append(vutils.make_grid(fake, padding = 2, normalize=True))
-
-        # Save Losses every epoch for plotting later
-        if i == len(dataloader) - 1:
-            G_losses.append(errG.item())
-            D_losses.append(errD.item())
+        G_losses.append(errG.item())
+        D_losses.append(errD.item())
 
         iters += 1
 
@@ -314,7 +303,7 @@ plt.figure(figsize=(10,5))
 plt.title("Generator and Discriminator Loss During Training")
 plt.plot(G_losses,label="G")
 plt.plot(D_losses,label="D")
-plt.xlabel("Epochs")
+plt.xlabel("Iterations")
 plt.ylabel("Loss")
 plt.legend()
 plt.savefig(model_dir + 'loss.png')
