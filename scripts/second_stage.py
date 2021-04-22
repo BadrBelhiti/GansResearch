@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
 from PIL import Image
+from torchsummary import summary
 
 # Set random seed for reproducibility
 manualSeed = 999
@@ -195,7 +196,7 @@ class Generator(nn.Module):
         cond = self.conditional(conditional_input)
         print(cond.shape)
         # return self.main(cond)
-        return cond
+        return self.main(cond)
 
 # Create the generator
 netG = Generator(ngpu).to(device)
@@ -249,6 +250,15 @@ class Discriminator(nn.Module):
 
 # Create the Discriminator
 netD = Discriminator(ngpu).to(device)
+
+# Print models
+print('Generator')
+summary(netG, (1, 128, 128))
+
+print('Discriminator')
+summary(netD, (2, 128, 128))
+
+exit(0)
 
 # Handle multi-gpu if desired
 if (device.type == 'cuda') and (ngpu > 1):
