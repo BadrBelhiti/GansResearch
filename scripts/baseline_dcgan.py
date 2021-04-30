@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from IPython.display import HTML
 import requests
+from torch.distributions import normal
 
 # Set random seed for reproducibility
 manualSeed = 999
@@ -29,6 +30,7 @@ torch.manual_seed(manualSeed)
 
 # Model name
 model_name = 'baseline_dcgan'
+arch_name = 'noisy_disc'
 
 # Root directory for dataset
 data_root = "../data/CelebA/training_edges/large/"
@@ -78,7 +80,7 @@ model_dir = '../models/' + model_name + '/'
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
-model_dir += str(num_epochs) + '/'
+model_dir += arch_name + '/'
 
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
@@ -96,16 +98,7 @@ device = torch.device("cuda" if (torch.cuda.is_available() and ngpu > 0) else "c
 
 print('Training on:', device)
 
-'''
-# Plot some training images
-real_batch = next(iter(dataloader))
-plt.figure(figsize=(8,8))
-plt.axis("off")
-plt.title("Training Images")
-plt.imshow(np.transpose(vutils.make_grid(real_batch[0].to(device)[:64], padding=2, normalize=True),(1,2,0)))
-plt.show()
-'''
-
+# Function to initialize weights using a normal distribution of some mean and variance
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Conv') != -1:
@@ -225,6 +218,19 @@ fake_label = 0.
 optimizerD = optim.Adam(netD.parameters(), lr=d_lr, betas=(beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=g_lr, betas=(beta1, 0.999))
 
+# Function to save current GAN as a checkpoint
+def save_checkpoint(checkpoint_name):
+    save_dir = '%s%s/' % (model_dir, checkpoint_name)
+    model_G = netG.module if device.type == 'cuda' else netG
+    model_D = netD.module if device.type == 'cuda' else netD
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    torch.save(model_G.state_dict(), save_dir + 'netG.pth')
+    torch.save(model_D.state_dict(), save_dir + 'netD.pth')
+
+
 # Training Loop
 
 # Lists to keep track of progress
@@ -246,10 +252,11 @@ for epoch in range(num_epochs):
         netD.zero_grad()
         # Format batch
         real_cpu = data[0].to(device)
+        real_noise = normal.Normal(0.0, 0.2).sample(real_cpu.shape)
         b_size = real_cpu.size(0)
         label = torch.full((b_size,), real_label, dtype=torch.float, device=device)
         # Forward pass real batch through D
-        output = netD(real_cpu).view(-1)
+        output = netD(real_cpu.add_(real_noise)).view(-1)
         # Calculate loss on all-real batch
         errD_real = criterion(output, label)
         # Calculate gradients for D in backward pass
@@ -299,6 +306,11 @@ for epoch in range(num_epochs):
 
         iters += 1
 
+    # Save checkpoint every 5 epochs
+    if epoch % 5 == 0 and epoch != 0:
+        save_checkpoint('%d-epochs' % epoch)
+
+# Plot and save loss data
 plt.figure(figsize=(10,5))
 plt.title("Generator and Discriminator Loss During Training")
 plt.plot(G_losses,label="G")
@@ -309,6 +321,4 @@ plt.legend()
 plt.savefig(model_dir + 'loss.png')
 
 # Save model
-if device.type == 'cuda':
-    netG = netG.module
-torch.save(netG.state_dict(), model_dir + 'model.pth')
+save_checkpoint('final-%d' % iters)
