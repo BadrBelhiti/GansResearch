@@ -16,9 +16,6 @@ import torchvision.transforms as transforms
 import torchvision.utils as vutils
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.animation as animation
-from IPython.display import HTML
-import requests
 from torch.distributions import normal
 
 # Set random seed for reproducibility
