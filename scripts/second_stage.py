@@ -26,7 +26,7 @@ torch.manual_seed(manualSeed)
 
 # Model name
 model_name = 'second_stage'
-arch_name = 'ResNet_9'
+arch_name = 'ResNet_6'
 
 # Root directory for dataset
 edges_root = "../data/CelebA/edges_grayscale/large/edges/data/"
@@ -166,7 +166,7 @@ class Generator(nn.Module):
             ]
 
         mult = 2 ** n_downsampling
-        for i in range(9):  # ResNet-9 requires 9 blocks
+        for i in range(6):  # ResNet-6 requires 6 blocks
 
             model += [
                 ResnetBlock(ngf * mult)
