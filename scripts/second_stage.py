@@ -1,7 +1,4 @@
-from __future__ import print_function
 
-#%matplotlib inline
-import argparse
 import os
 import random
 import torch
@@ -19,7 +16,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
 from PIL import Image
-from torchsummary import summary
 
 # Set random seed for reproducibility
 manualSeed = 999
@@ -29,7 +25,8 @@ random.seed(manualSeed)
 torch.manual_seed(manualSeed)
 
 # Model name
-model_name = "second_stage"
+model_name = 'second_stage'
+arch_name = 'ResNet_9'
 
 # Root directory for dataset
 edges_root = "../data/CelebA/edges_grayscale/large/edges/data/"
@@ -57,9 +54,6 @@ ngf = 64
 # Size of feature maps in discriminator
 ndf = 64
 
-# Size of feature maps in conditional input layers
-ncf = 32
-
 # Number of training epochs
 num_epochs = 5
 
@@ -83,7 +77,7 @@ model_dir = "../models/" + model_name + "/"
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
-model_dir += str(num_epochs) + "/"
+model_dir += arch_name + '/'
 
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
@@ -302,13 +296,99 @@ fake_label = 0.0
 optimizerD = optim.Adam(netD.parameters(), lr=d_lr, betas=(beta1, 0.999))
 optimizerG = optim.Adam(netG.parameters(), lr=g_lr, betas=(beta1, 0.999))
 
+# Function to save current GAN as a checkpoint
+def save_checkpoint(checkpoint_name):
+    save_dir = '%s%s/' % (model_dir, checkpoint_name)
+    model_G = netG.module if device.type == 'cuda' else netG
+    model_D = netD.module if device.type == 'cuda' else netD
+
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+
+    torch.save(model_G.state_dict(), save_dir + 'netG.pth')
+    torch.save(model_D.state_dict(), save_dir + 'netD.pth')
+
 # Training Loop
 
 # Lists to keep track of progress
+last_n = 10000
+running_G_loss = 0
+running_D_loss = 0
+patience = 50000
+
 img_list = []
 G_losses = []
+G_adv_losses = []
 D_losses = []
+best_total_losses = []
+best_total_loss = 200 * last_n
+time_since_best = 0
 iters = 0
+
+# Save loss graph
+def save_loss():
+    # Adversarial losses
+    plt.figure(figsize=(10, 5))
+    plt.title("Generator and Discriminator Adversarial Loss During Training")
+    plt.plot(G_adv_losses, label="G")
+    plt.plot(D_losses, label="D")
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.savefig(model_dir + "adversarial_loss.png")
+
+    # Generator losses
+    plt.figure(figsize=(10, 5))
+    plt.title("Generator Loss During Training")
+    plt.plot(G_losses, label="G", alpha=0.5)
+    plt.plot(best_total_losses, label="Best")
+    plt.xlabel("Iterations")
+    plt.ylabel("Loss")
+    plt.legend()
+    plt.savefig(model_dir + "generator_loss.png")
+
+
+# Function that returns true if losses are "acceptable", false otherwise
+def should_continue(G_losses, D_losses):
+    global running_G_loss
+    global running_D_loss
+    global best_total_loss
+    global time_since_best
+
+    # Not enough loss information to stop training
+    if len(G_losses) < last_n:
+        return True
+    
+    if len(G_losses) == last_n:
+        running_G_loss = sum(G_losses)
+        running_D_loss = sum(D_losses)
+        best_total_loss = running_G_loss + running_D_loss
+        return True
+
+    # Include current loss
+    running_G_loss -= G_losses[-last_n]
+    running_G_loss += G_losses[-1]
+
+    running_D_loss -= D_losses[-last_n]
+    running_D_loss += D_losses[-1]
+
+    running_total_loss = running_G_loss + running_D_loss
+
+    best_total_losses.append(best_total_loss / last_n)
+
+    if running_total_loss > best_total_loss and time_since_best > patience:
+        return False
+
+    time_since_best += 1
+
+    if running_total_loss < best_total_loss:
+        best_total_loss = running_total_loss
+        time_since_best = 0
+        print('New best %f' % (best_total_loss / last_n))
+
+    return True
+
+
 
 print("Starting Training Loop...")
 # For each epoch
@@ -325,10 +405,6 @@ for epoch in range(num_epochs):
         # Format batch
         real_edges = data["edges"].to(device)
         real_grayscale = data["grayscale"].to(device)
-
-        # Skip iterations with incomplete batch
-        if len(real_grayscale) < batch_size:
-            continue
 
         b_size = real_grayscale.size(0)
         label = torch.full((b_size, 1, 14, 14), real_label, dtype=torch.float, device=device)
@@ -392,42 +468,42 @@ for epoch in range(num_epochs):
         optimizerG.step()
 
         # Output training stats
-        if iters % 1000 == 0:
+        if iters % 1000 == 0 and iters != 0:
             print(
-                "[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: %.4f\tD(x): %.4f\tD(G(z)): %.4f / %.4f"
+                "[%d/%d][%d/%d]\tLoss_D: %.4f\tLoss_G: (%.4f, %.4f)\tD(x): %.4f\tD(G(z)): %.4f / %.4f"
                 % (
                     epoch + 1,
                     num_epochs,
                     i,
                     len(dataloader),
                     errD.item(),
-                    errG.item(),
+                    errG_realism.item(),
+                    mapping_weight * errG_mapping,
                     D_x,
                     D_G_z1,
                     D_G_z2,
                 )
             )
-            G_losses.append(errG.item())
-            D_losses.append(errD.item())
+
+        G_losses.append(errG.item())
+        G_adv_losses.append(errG_realism.item())
+        D_losses.append(errD.item())
+
+        if not should_continue(G_losses, D_losses):
+            print('Early stopping due to undesirable loss...')
+            save_loss()
+            save_checkpoint('early_stop-%d' % iters)
+            exit(0)
 
         iters += 1
 
-    # Save generated sample from each epoch
-    # fake_image = netG((torch.randn(16, nz, 1, 1, device=device), dataset[0]['edges']))
-    # img_list.append(np.transpose(vutils.make_grid(fake_image, padding = 5, normalize=True), (1, 2, 0)))
+    
+    save_checkpoint('epoch_%d' % epoch)
+    
 
 print("Finished training. Saving results...")
 
-plt.figure(figsize=(10, 5))
-plt.title("Generator and Discriminator Loss During Training")
-plt.plot(G_losses, label="G")
-plt.plot(D_losses, label="D")
-plt.xlabel("Iterations")
-plt.ylabel("Loss")
-plt.legend()
-plt.savefig(model_dir + "loss.png")
+save_loss()
 
 # Save model
-if device.type == "cuda":
-    netG = netG.module
-torch.save(netG.state_dict(), model_dir + "model.pth")
+save_checkpoint('final')
