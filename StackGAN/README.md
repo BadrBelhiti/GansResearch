@@ -1,7 +1,7 @@
 ## Running the model
 Use the StackRunner notebook to forward propagate through the entire StackGAN.
 
-# Concerning CelebA
+## Concerning CelebA
 This zip includes a small subset of CelebA to test the
 functionality of the dataset-building scripts. This
 mini dataset of 64 samples is not enough to train the
