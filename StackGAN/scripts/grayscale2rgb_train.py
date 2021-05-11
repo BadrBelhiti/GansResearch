@@ -95,9 +95,15 @@ model_dir += arch_name + "/"
 if not os.path.exists(model_dir):
     os.mkdir(model_dir)
 
-# Custom dataset that loads corresponding edges and grayscale images together
+# Custom dataset that loads corresponding grayscale and RGB images together
 class GrayscaleToRgbDataset(Dataset):
     def __init__(self, grayscale_dir, rgb_dir, transform=None):
+        """
+        Initialize layout for GrayscaleToRgbDataset. Keeps track of associated mapping
+        grayscale_dir - Path to directory containing grayscale images
+        rgb_dir - Path to directory containing RGB images
+        transform (optional) - Any PyTorch transforms that should be applied to the images
+        """
         assert len(os.listdir(grayscale_dir)) == len(os.listdir(rgb_dir))
         self.grayscale = grayscale_dir
         self.rgb = rgb_dir
@@ -105,9 +111,16 @@ class GrayscaleToRgbDataset(Dataset):
         self.length = len(os.listdir(grayscale_dir))
 
     def __len__(self):
+        """
+        Return number of grayscale files
+        """
         return self.length
 
     def __getitem__(self, idx):
+        """
+        Get pair of grayscale and RGB images associated with idx
+        idx: index of grayscale and RGB image files in respective directories
+        """
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
@@ -156,6 +169,10 @@ def weights_init(m):
 # ResNet-6 image-to-image implementation
 class Generator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Define architecture for grayscale to RGB generator
+        ngpu - Number of gpu's to train model on
+        """
         super(Generator, self).__init__()
         self.ngpu = ngpu
 
@@ -215,17 +232,29 @@ class Generator(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, input):
+        """
+        Conduct single forward pass
+        input - 128x128x1 grayscale image
+        """
         return self.model(input)
 
 
 # ResNet block that uses reflection padding and instance normalization
 class ResnetBlock(nn.Module):
     def __init__(self, dim):
+        """
+        Defining the Resnet Block architecture
+        dim - Input and output dimensions of block. This block doesn't change dimensionality.
+        """
         super(ResnetBlock, self).__init__()
         self.conv_block = self.build_conv_block(dim)
 
     # An arbitrary convolutional block that maintains dimensionality
     def build_conv_block(self, dim):
+        """
+        Construct convolutional block for ResNet architecture
+        dim - Input and output dimensions of block.
+        """
         conv_block = [
             nn.ReflectionPad2d(1),
             nn.Conv2d(dim, dim, kernel_size=3, padding=0, bias=True),
@@ -240,6 +269,9 @@ class ResnetBlock(nn.Module):
 
     # ResNet architecture relies on "skip-connections" to achieve superior results
     def forward(self, x):
+        """
+        Conduct forward pass
+        """
         return x + self.conv_block(x)
 
 
@@ -257,6 +289,10 @@ netG.apply(weights_init)
 # Define 5 layer discriminator with batch normalization
 class Discriminator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Defines discriminator architecture for grayscale to RGB stage
+        ngpu - Number of gpu's to train model on
+        """
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
 
@@ -314,6 +350,10 @@ class Discriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
+        """
+        Conducts forward pass
+        input - Grayscale and RGB images concatenated on channel axis
+        """
         grayscale, rgb = input
         return self.model(torch.cat([grayscale, rgb], dim=1))
 
@@ -343,7 +383,10 @@ optimizerG = optim.Adam(netG.parameters(), lr=g_lr, betas=(beta1, 0.999), amsgra
 
 
 def save_checkpoint(checkpoint_name):
-    """Function to save current GAN as a checkpoint"""
+    """
+    Function to save current GAN as a checkpoint
+    checkpoint_name - Name of directory to save models in
+    """
 
     save_dir = "%s%s/" % (model_dir, checkpoint_name)
     model_G = netG.module if device.type == "cuda" else netG
@@ -375,7 +418,9 @@ iters = 0
 
 
 def save_loss():
-    """Function that saves the current loss graphs for the training"""
+    """
+    Function that saves the current loss graphs for the training
+    """
 
     # Adversarial losses
     plt.figure(figsize=(10, 5))
@@ -399,7 +444,11 @@ def save_loss():
 
 
 def should_continue(G_losses, D_losses):
-    """Function that returns true if losses are "acceptable", false otherwise"""
+    """
+    Function that returns true if losses are "acceptable", false otherwise
+    G_losses - Array of past generator losses
+    D_losses - Array of past discriminator losses
+    """
 
     global running_G_loss
     global running_D_loss

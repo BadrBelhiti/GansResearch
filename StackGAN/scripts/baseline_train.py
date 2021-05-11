@@ -124,6 +124,10 @@ def weights_init(m):
 
 class Generator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Initializes baseline generator model
+        ngpu - Number of gpu's to train model on
+        """
         super(Generator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
@@ -154,6 +158,10 @@ class Generator(nn.Module):
         )
 
     def forward(self, input):
+        """
+        Conducts forward pass on model
+        input - Latent vector
+        """
         return self.main(input)
 
 
@@ -171,6 +179,10 @@ netG.apply(weights_init)
 
 class Discriminator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Initializes baseline discriminator model
+        ngpu - Number of gpu's to train model on
+        """
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
         self.main = nn.Sequential(
@@ -198,6 +210,10 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, input):
+        """
+        Conducts forward pass
+        input - A 128x128x1 image
+        """
         return self.main(input)
 
 

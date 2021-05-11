@@ -55,7 +55,9 @@ resolution = (128, 128)
 
 
 def build_samples(count=0):
-    """Function that generates 'count' number of samples to generate. If count=0, build entire dataset"""
+    """
+    Function that generates 'count' number of samples to generate. If count=0, build entire dataset
+    """
 
     built = 0
 

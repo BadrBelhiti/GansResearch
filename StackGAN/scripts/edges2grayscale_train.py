@@ -96,6 +96,12 @@ if not os.path.exists(model_dir):
 # Custom dataset that loads corresponding edges and grayscale images together
 class EdgesToGrayscaleDataset(Dataset):
     def __init__(self, edges_dir, grayscale_dir, transform=None):
+        """
+        Initialize layout for EdgesToGrayscaleDataset. Keeps track of associated mapping
+        edges_dir - Path to directory containing edge images
+        grayscale_dir - Path to directory containing grayscale images
+        transform (optional) - Any PyTorch transforms that should be applied to the images
+        """
         assert len(os.listdir(edges_dir)) == len(os.listdir(grayscale_dir))
         self.edges = edges_dir
         self.grayscale = grayscale_dir
@@ -103,9 +109,16 @@ class EdgesToGrayscaleDataset(Dataset):
         self.length = len(os.listdir(edges_dir))
 
     def __len__(self):
+        """
+        Return number of edge files
+        """
         return self.length
 
     def __getitem__(self, idx):
+        """
+        Return associated edge and image file
+        idx: index of edge and grayscale image files in respective directories
+        """
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
@@ -159,6 +172,10 @@ def weights_init(m):
 
 class Generator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Define edges to grayscale generator architecture
+        ngpu - Number of gpu's to train model on
+        """
         super(Generator, self).__init__()
         self.ngpu = ngpu
 
@@ -218,6 +235,10 @@ class Generator(nn.Module):
         self.model = nn.Sequential(*model)
 
     def forward(self, input):
+        """
+        Conduct forward pass
+        input - 128x128x1 edge image
+        """
         return self.model(input)
 
 
@@ -226,11 +247,19 @@ class Generator(nn.Module):
 
 class ResnetBlock(nn.Module):
     def __init__(self, dim):
+        """
+        Defining the Resnet Block architecture
+        dim - Input and output dimensions of block. This block doesn't change dimensionality.
+        """
         super(ResnetBlock, self).__init__()
         self.conv_block = self.build_conv_block(dim)
 
     # An arbitrary convolutional block that maintains dimensionality
     def build_conv_block(self, dim):
+        """
+        Construct convolutional block for ResNet architecture
+        dim - Input and output dimensions of block.
+        """
         conv_block = [
             nn.ReflectionPad2d(1),
             nn.Conv2d(dim, dim, kernel_size=3, padding=0, bias=True),
@@ -245,6 +274,10 @@ class ResnetBlock(nn.Module):
 
     # ResNet architecture relies on "skip-connections" to achieve superior results
     def forward(self, x):
+        """
+        Conduct forward pass
+        x - Signal going into the block
+        """
         return x + self.conv_block(x)
 
 
@@ -264,6 +297,10 @@ netG.apply(weights_init)
 
 class Discriminator(nn.Module):
     def __init__(self, ngpu):
+        """
+        Define architecture for edges to grayscale discriminator model
+        ngpu - Number of gpu's to train model on
+        """
         super(Discriminator, self).__init__()
         self.ngpu = ngpu
 
@@ -321,6 +358,10 @@ class Discriminator(nn.Module):
         self.model = nn.Sequential(*sequence)
 
     def forward(self, input):
+        """
+        Conduct forward pass
+        input - An edges and grayscale image concatenated on the channel axis
+        """
         edges, grayscale = input
         return self.model(torch.cat([edges, grayscale], dim=1))
 
