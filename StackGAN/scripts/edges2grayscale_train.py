@@ -2,6 +2,12 @@
 Our current implementation for converting edges to grayscale
 images. This script incorporates ResNet-6 (https://arxiv.org/abs/1512.03385)
 to achieve optimal image-to-image translation.
+
+Based off of:
+https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+
+Repurposed by Badr Belhiti
 """
 
 # Imports

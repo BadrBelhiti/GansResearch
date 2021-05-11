@@ -3,6 +3,11 @@ Our current implementation of the baseline GAN that generates edges from
 noise. This script incorporates WGAN (https://arxiv.org/abs/1701.07875)
 and DCGAN (https://arxiv.org/abs/1511.06434) techniques in attempt to
 stablize training and overall provide higher quality images.
+
+Based off of: 
+https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+
+Repurposed by Badr Belhiti
 """
 
 # Imports

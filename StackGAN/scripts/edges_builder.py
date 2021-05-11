@@ -2,6 +2,8 @@
 Uses the CelebA dataset to build training
 edges for the baseline GAN and saves the
 resulting images into a training directory.
+
+Written by Badr Belhiti
 """
 
 # Imports
@@ -13,7 +15,7 @@ from skimage import filters
 from matplotlib import cm
 
 # Specify working directories
-input_directory = "../data/CelebA/celeba/"
+input_directory = "../data/CelebA/mini_celeba/"
 output_directory = "../data/CelebA/training_edges/large/data/"
 
 # Initialize directories

@@ -3,6 +3,12 @@ Our current implementation for converting grayscale to RGB images.
 This script incorporates ResNet-6 (https://arxiv.org/abs/1512.03385)
 as well as AMSGrad (https://arxiv.org/abs/1904.09237) to achieve 
 optimal image-to-image translation.
+
+Based off of:
+https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html
+https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix
+
+Repurposed by Badr Belhiti
 """
 
 # Imports

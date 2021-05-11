@@ -4,6 +4,8 @@ by our edges2grayscale conditional GAN. It takes in raw
 CelebA images and converts them into their respective
 edges and grayscale representations and saves the results
 in corresponding subdirectories.
+
+Written by Badr Belhiti
 """
 
 # Imports
@@ -15,7 +17,7 @@ from skimage import filters
 from matplotlib import cm
 
 # Specify working directories
-input_directory = "../data/CelebA/celeba/"
+input_directory = "../data/CelebA/mini_celeba/"
 output_edges_directory = "../data/CelebA/edges_grayscale/large/edges/data/"
 output_grayscale_directory = "../data/CelebA/edges_grayscale/large/grayscale/data/"
 

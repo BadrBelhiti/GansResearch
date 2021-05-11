@@ -4,6 +4,8 @@ by our grayscale2rgb conditional GAN. It takes in raw
 CelebA images and converts them into their respective
 grayscale and rgb representations and saves the results
 in corresponding subdirectories.
+
+Written by Badr Belhiti
 """
 
 # Imports
@@ -15,7 +17,7 @@ from skimage import filters
 from matplotlib import cm
 
 # Specify working directories
-input_directory = "../data/CelebA/celeba/"
+input_directory = "../data/CelebA/mini_celeba/"
 output_grayscale_directory = "../data/CelebA/grayscale_rgb/large/grayscale/data/"
 output_rgb_directory = "../data/CelebA/grayscale_rgb/large/rgb/data/"
 
